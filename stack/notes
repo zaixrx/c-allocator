@@ -1,0 +1,15 @@
+pointers, arrays and address arithmetic integration
+
+- rudimentary stack storage allocator: (fn alloc(n: u64) -> char[u64], afree(p: &()) -> ())
+- we have allocp(position)
+
+(alloc/1): {
+	- hands out pieces of a large char[] `allocbuf` which is protected by alloc and afree!
+	- it can be static in the TU contaning `alloc` and `afree`
+	- return (allocp + $1) < total_space ? allocp : (void*)0;
+}
+
+(afree/1): {
+	- frees used parts from allocbuf and merely sets allocp to $1
+}
+
