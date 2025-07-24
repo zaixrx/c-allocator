@@ -32,11 +32,23 @@ int main(void) {
 	printf("soft_limit: %lu, hard_limit: %lu\n", rlimits.rlim_cur, rlimits.rlim_max);
 	*/
 
-	void *fbr = sbrk(0);
-	sbrk(PAGE_SIZE);
-	void *ebr = sbrk(0);
+	// void *fbr = sbrk(0);
+	// sbrk(PAGE_SIZE);
+	// void *ebr = sbrk(0);
+	// printf("start: %p, end: %p\n", fbr, ebr);
 
-	printf("start: %p, end: %p\n", fbr, ebr);
+#define ARR_SIZE 10000
+	char *arr[ARR_SIZE] = {0};
+
+	for (int i = 0; i < ARR_SIZE; ++i) {
+		printf("allocated %d bytes rnrn\n", i);
+		arr[i] = malloc(i);
+	}
+
+	for (int i = 0; i < ARR_SIZE; ++i) {
+		printf("freed %d bytes rnrn\n", i);
+		free(arr[i]);
+	}
 
 	return EXIT_SUCCESS;
 }
