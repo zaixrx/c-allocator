@@ -34,7 +34,6 @@ Chunk *dchunk(size_t size) {
 }
 
 size_t getceil(size_t size, size_t to) {
-	if (size % to == 0) return size;
 	return size + ((to) - (size % to));
 }
 
@@ -43,40 +42,63 @@ void *halloc(size_t size) {
 	size = getceil(size, WORD_SIZE);
 
 	if (free_chunks == NULL) {
-		// Out Of Memory
+		// Out Of Memory errno for more details. <:
 		if ((free_chunks = dchunk(getceil(size, PAGE_SIZE))) == NULL) {
 			return NULL;
 		}
 	}
 
-	Chunk *curr = free_chunks;
-	for (Chunk *prev = NULL; curr; prev = curr, curr = curr->next) {
+	Chunk *curr = free_chunks, *prev = NULL;
+	for (prev = NULL; curr; prev = curr, curr = curr->next) {
+back:
 		if (curr->size >= size) {
 			void *basedata = (void*)(curr + (sizeof *curr));
 			if (curr->size == size) {
-				// TODO: don't forget to free header part!
 				if (prev == NULL && curr->next == NULL) {
 					free_chunks = NULL;
 				}
 				printf("used exactly %zu\n", size);
 				return basedata;
 			}
-			// use bitwise ops
-			printf("used %zu out of %zu\n", size, curr->size);
+
+			// TODO: this can result in empty pads
+			if (size + sizeof *curr > curr->size) continue;
+
+			printf("used %zu out of %zu\n", size + sizeof *curr, curr->size);
+
 			basedata   += curr->size - size % curr->size;
-			curr->size -= size;
+			curr->size -= size + sizeof *curr;
+
+			Chunk *temp = (Chunk*)(basedata - sizeof *curr);
+			temp->size = size;
+			temp->next = NULL;
+
 			return basedata;
 		}
 	}
 
-	TODO("Allocate New Page(s) To Fit Object!");
+	if ((curr = prev->next = dchunk(getceil(size, PAGE_SIZE))) == NULL) return NULL;
+	goto back;
+}
+
+void hfree(void *ptr) {
+	// TODO: handle merging memory chunks
+	Chunk *chunk = ptr - sizeof *chunk;
+	chunk->next = free_chunks;
+	free_chunks = chunk;
+	printf("freed %zu bytes\n", chunk->size);
 }
 
 int main(void) {
-	char *arr[10] = {0};
+#define ARR_SIZE 100
+	char *arr[ARR_SIZE] = {0};
 
-	for (int i = 0; i < 10; ++i) {
+	for (int i = 0; i < ARR_SIZE; ++i) {
 		arr[i] = halloc(i);
+	}
+
+	for (int i = 0; i < ARR_SIZE; ++i) {
+		hfree(arr[i]);
 	}
 
 	return EXIT_SUCCESS;
