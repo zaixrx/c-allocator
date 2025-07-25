@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -8,12 +6,12 @@
 	do { \
 		fprintf(stderr, "TODO (%s, %d) at %s: %s\n", \
 				__FILE__, __LINE__, __func__, msg); \
-		exit(EXIT_FAILURE); \
+		abort(); \
  	} while (0)
 
 #define PAGE_SIZE 1 << 12 // Allocate 1 mega-byte page
-#define WORD_SIZE sizeof(uintptr_t)
-#define WORD uintptr_t
+#define WORD_SIZE sizeof(void*)
+#define WORD void*
 
 typedef struct chunk {
 	struct chunk *next;
@@ -29,11 +27,14 @@ static ChunkHeader *free_chunks = NULL;
 // by used memory of size `size` is returned otherwise NULL
 static ChunkHeader *dchunk(size_t words_count) {
 	size_t size = words_count * WORD_SIZE;
+
 	ChunkHeader *chunk = sbrk(size + HEADER_SIZE);
-	printf("%p of size %zu\n", chunk, size + HEADER_SIZE);
+
 	if (chunk == (void*)-1) return NULL;
+
 	chunk->size = size,
 	chunk->next = NULL;
+
 	return chunk;
 }
 
@@ -65,7 +66,7 @@ back:
 				return curr + HEADER_SIZE;
 			}
 
-			ChunkHeader *new_chunk = curr + curr->size - size;
+			ChunkHeader *new_chunk = (ChunkHeader*)((char*)curr + (curr->size - size));
 			new_chunk->size = size;
 			new_chunk->next = NULL;
 
@@ -76,24 +77,34 @@ back:
 	}
 
 	if ((curr = prev->next = dchunk(round_up_to(size, PAGE_SIZE) / WORD_SIZE)) == NULL) return NULL;
+
 	goto back;
 }
 
 void hfree(void *ptr) {
 	// TODO: handle merging memory chunks
-	ChunkHeader *chunk = ptr - sizeof *chunk;
+	ChunkHeader *chunk = (ChunkHeader*)((char*)ptr - HEADER_SIZE);
 	chunk->next = free_chunks;
 	free_chunks = chunk;
-	printf("freed %zu bytes\n", chunk->size);
+
+	TODO("Implement Merging!");
 }
 
+static char stdout_buf[1024];
+
 int main(void) {
-#define ARR_SIZE 100
+	setvbuf(stdout, stdout_buf, _IOLBF, sizeof stdout_buf);
+	
+#define ARR_SIZE 10000
 	char *arr[ARR_SIZE] = {0};
 
 	for (int i = 0; i < ARR_SIZE; ++i) {
 		arr[i] = halloc(i);
 	}
 
-	return EXIT_SUCCESS;
+	for (int i = 0; i < ARR_SIZE; ++i ) {
+		hfree(arr[i]);
+	}
+
+	return 0;
 }

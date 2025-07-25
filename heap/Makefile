@@ -1,8 +1,8 @@
-all: halloc
-	./halloc
+all: halloc.out
+	./halloc.out
 
-debug: halloc
-	gdb ./halloc
+debug: halloc.out
+	gdb ./halloc.out
 
-halloc: halloc.c
-	cc -o halloc halloc.c -g
+halloc.out: halloc.c
+	cc -g -o halloc.out halloc.c

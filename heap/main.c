@@ -8,6 +8,8 @@
 #define print_size(type, type_as_str) \
 	printf("size of %s: %lu byte(s)\n", (type_as_str), sizeof (type));
 
+static char buf [3];
+
 int main(void) {
 	// print_size(signed, "signed");
 	// print_size(unsigned, "unsigned");
@@ -37,6 +39,7 @@ int main(void) {
 	// void *ebr = sbrk(0);
 	// printf("start: %p, end: %p\n", fbr, ebr);
 
+	/*
 #define ARR_SIZE 10000
 	char *arr[ARR_SIZE] = {0};
 
@@ -49,6 +52,21 @@ int main(void) {
 		printf("freed %d bytes rnrn\n", i);
 		free(arr[i]);
 	}
+	*/
 
+	setvbuf(stdout, buf, _IOLBF, sizeof buf);
+	
+	printf("sizeof buf[0] %lu", sizeof(buf));
+
+	void *toto1 = sbrk(0);
+	printf("sbrk(0) = %p\n", sbrk(0));
+	void *toto2 = sbrk(0);
+	void *toto3 = sbrk(5);
+	void *toto4 = sbrk(0);
+
+	printf("sbrk(0) = %p\n", toto1);
+	printf("sbrk(0) = %p\n", toto2);
+	printf("sbrk(5) = %p\n", toto3);
+	printf("sbrk(0) = %p\n", toto4);
 	return EXIT_SUCCESS;
 }
