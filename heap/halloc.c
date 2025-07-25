@@ -12,6 +12,7 @@
 #define PAGE_SIZE 1 << 12 // Allocate 1 mega-byte page
 #define WORD_SIZE sizeof(void*)
 #define WORD void*
+// #define DO_LOG
 
 typedef struct chunk {
 	struct chunk *next;
@@ -57,22 +58,24 @@ void *halloc(size_t size) {
 	for (; curr; prev = curr, curr = curr->next) {
 back:
 		if (curr->size >= size) {
+#ifdef DO_LOG
 			printf("used %zu out of %zu\n", size, curr->size);
-
+#endif
 			if (curr->size == size) {
 				// there is only one chunk
 				if (prev == NULL && curr->next == NULL)
 					free_chunks = NULL;
-				return curr + HEADER_SIZE;
+				return curr + 1;
 			}
 
 			ChunkHeader *new_chunk = (ChunkHeader*)((char*)curr + (curr->size - size));
+			printf("wrote to %p size %zu\n", new_chunk, size);
 			new_chunk->size = size;
 			new_chunk->next = NULL;
 
 			curr->size -= size + HEADER_SIZE;
 
-			return new_chunk + HEADER_SIZE;
+			return new_chunk + 1;
 		}
 	}
 
@@ -82,29 +85,44 @@ back:
 }
 
 void hfree(void *ptr) {
-	// TODO: handle merging memory chunks
-	ChunkHeader *chunk = (ChunkHeader*)((char*)ptr - HEADER_SIZE);
+	ChunkHeader *chunk = (ChunkHeader*)ptr - 1;
+
+	ChunkHeader *curr, *prev = NULL;
+	for (curr = free_chunks; curr; curr = (prev = curr)->next) {
+		// TODO: when merging left and right side you should stop!
+		if ((char*)curr + HEADER_SIZE + curr->size == (char*)chunk) {
+			curr->size += HEADER_SIZE + chunk->size;
+			chunk = curr;
+			printf("merged LS, new size: %zu\n", curr->size);
+		}
+
+		if ((char*)chunk + HEADER_SIZE + chunk->size == (char*)curr) {
+			chunk->next  = curr->next;
+			chunk->size += HEADER_SIZE + curr->size;
+			// first element
+			if (prev == NULL) {
+				free_chunks = chunk;
+			} else {
+				prev->next = chunk;
+			}
+			printf("marged RS, new size: %zu\n", chunk->size);
+		}
+	}
+
 	chunk->next = free_chunks;
 	free_chunks = chunk;
-
-	TODO("Implement Merging!");
 }
 
-static char stdout_buf[1024];
-
 int main(void) {
+	char stdout_buf[1024];
 	setvbuf(stdout, stdout_buf, _IOLBF, sizeof stdout_buf);
 	
-#define ARR_SIZE 10000
-	char *arr[ARR_SIZE] = {0};
+	// TODO: fix 88 bug
+	void *object_a = halloc(WORD_SIZE * 10);
+	void *object_b = halloc(WORD_SIZE * 10);
 
-	for (int i = 0; i < ARR_SIZE; ++i) {
-		arr[i] = halloc(i);
-	}
-
-	for (int i = 0; i < ARR_SIZE; ++i ) {
-		hfree(arr[i]);
-	}
+	hfree(object_a);
+	hfree(object_b);
 
 	return 0;
 }
