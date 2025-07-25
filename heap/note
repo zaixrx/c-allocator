@@ -1,29 +1,10 @@
-rather from allocating from a compile time fixed size array `halloc` is very flexible
-It'll perform syscalls to obtain memory as needed, space that `halloc` allocates won't
-be contiguous for the reason that not all memory is allocated with `halloc`!
+apart from the allocator supporting the ability to hand
+reused memory ``halloc`` and keep track of unused memory
+``hfree`` the allocator should:
 
-(halloc/1): {
-	- struct free_space { struct { size_t space_size; void *space; } val; struct free_space *next; };
-	- blocks are kept in the order of increasing storage(why?)
-	- the linked list is cyclic i.e last free_space_block points to the first
-
-	- upon request the list is scanned until a large enough space is found! {
-		if (space->val.size == $1) return ll.unlink(space); // returns `space`
-		else if (space->val.size > $1) // split and return what remains restored
-		// if no big enough block is found request new large enough memory from the OS
-	}
-
-	- Freeing also causes a search of the free list, to find the proper place to insert
-	  the block being freed. If the block being freed is adjacent to a free block on either
-	  side, it is coalesced with it into a single bigger block, so storage does not become
-	  too fragmented. Determining the adjacency is easy because the free list is maintained
-	  in order of decreasing address.
-}
-
-heap allocator requires:
-- request data from heap {
-	- can we have one big continuous heap buffer?
-}
-- store freed data for resuse {
-	- merge stored data (if memory is near allocated one)
-}
+- avoid fragmentation as much as possible. -- remerging hfree <:
+- work well with parellel and concurrent processes
+  (which I won't give a fuck about!). -- >:
+- improve the ``memory layout`` with respect to the
+  CPU to improve ``cache locality`` and avoid ``false
+  sharing``.

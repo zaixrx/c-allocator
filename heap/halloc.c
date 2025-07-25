@@ -1,6 +1,9 @@
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "halloc.h"
 
 #define TODO(msg) \
 	do { \
@@ -9,9 +12,9 @@
 		abort(); \
  	} while (0)
 
-#define PAGE_SIZE 1 << 12 // Allocate 1 mega-byte page
-#define WORD_SIZE sizeof(void*)
-#define WORD void*
+#define PAGE_SIZE 1 << 20 // Allocate 1 mega-byte page
+#define WORD_SIZE sizeof(uintptr_t)
+#define WORD uintptr_t
 // #define DO_LOG
 
 typedef struct chunk {
@@ -23,11 +26,8 @@ typedef struct chunk {
 
 static ChunkHeader *free_chunks = NULL;
 
-// `size` is assumed to be a multiple of WORD_SIZE
-// upon success a pointer to a chunk struct followed
-// by used memory of size `size` is returned otherwise NULL
-static ChunkHeader *dchunk(size_t words_count) {
-	size_t size = words_count * WORD_SIZE;
+static ChunkHeader *dchunk(size_t words) {
+	size_t size = words * WORD_SIZE;
 
 	ChunkHeader *chunk = sbrk(size + HEADER_SIZE);
 
@@ -40,11 +40,12 @@ static ChunkHeader *dchunk(size_t words_count) {
 }
 
 size_t round_up_to(size_t size, size_t to) {
+	if (size > 0 && size % to == 0) return size;
 	return size + ((to) - (size % to));
 }
 
 // a call with size of 0 sets up an empty page!
-void *halloc(size_t size) {
+extern void *halloc(size_t size) {
 	size = round_up_to(size, WORD_SIZE);
 
 	if (free_chunks == NULL) {
@@ -84,45 +85,85 @@ back:
 	goto back;
 }
 
-void hfree(void *ptr) {
-	ChunkHeader *chunk = (ChunkHeader*)ptr - 1;
+extern void hfree(void *ptr) {
+	ChunkHeader *header = (ChunkHeader*)ptr - 1;
+	header->next = NULL;
 
-	ChunkHeader *curr, *prev = NULL;
-	for (curr = free_chunks; curr; curr = (prev = curr)->next) {
-		// TODO: when merging left and right side you should stop!
-		if ((char*)curr + HEADER_SIZE + curr->size == (char*)chunk) {
-			curr->size += HEADER_SIZE + chunk->size;
-			chunk = curr;
-			printf("merged LS, new size: %zu\n", curr->size);
-		}
-
-		if ((char*)chunk + HEADER_SIZE + chunk->size == (char*)curr) {
-			chunk->next  = curr->next;
-			chunk->size += HEADER_SIZE + curr->size;
-			// first element
-			if (prev == NULL) {
-				free_chunks = chunk;
-			} else {
-				prev->next = chunk;
-			}
-			printf("marged RS, new size: %zu\n", chunk->size);
-		}
+	if (free_chunks == NULL) {
+		free_chunks = header; return;
 	}
 
-	chunk->next = free_chunks;
-	free_chunks = chunk;
+	ChunkHeader *prev, *curr;
+	for (prev = NULL, curr = free_chunks; curr && (char*)curr <= (char*)ptr; curr = (prev = curr)->next);
+
+	bool done = false;
+	if (curr && (char*)header + HEADER_SIZE + header->size == (char*)curr) {
+		header->next  = curr->next;
+		header->size += HEADER_SIZE + curr->size;
+		// first element
+		if (prev == NULL) {
+			free_chunks = header;
+		} else {
+			prev->next  = header;
+		}
+		printf("merged RS, new size: %zu\n", header->size);
+		done = true;
+	}
+	if (prev && (char*)prev + HEADER_SIZE + prev->size == (char*)header) {
+		prev->size += HEADER_SIZE + header->size;
+		header = prev;
+		printf("merged LS, new size: %zu\n", prev->size);
+		done = true;
+	}
+
+	if (done) return;
+
+	if (prev) {
+		header->next = prev;
+		prev->next = header;
+
+		printf("added in the middle?\n");
+		return;
+	}
+
+	printf("added at first!\n");
+	header->next = free_chunks;
+	free_chunks = header;
 }
 
-int main(void) {
-	char stdout_buf[1024];
-	setvbuf(stdout, stdout_buf, _IOLBF, sizeof stdout_buf);
-	
-	// TODO: fix 88 bug
-	void *object_a = halloc(WORD_SIZE * 10);
-	void *object_b = halloc(WORD_SIZE * 10);
-
-	hfree(object_a);
-	hfree(object_b);
-
-	return 0;
+extern void *hcalloc(size_t size) {
+	uintptr_t *data = halloc(size);
+	if (data == NULL) return NULL;
+	size = round_up_to(size, WORD_SIZE);
+	for (WORD i = 0; i < (size / WORD_SIZE); ++i) {
+		*data = 0x0; // meow hehe
+	}
+	return data;
 }
+
+// used to work nice with other kinds of memory
+// one usage would be:
+// void *foreign_memory = malloc(69);
+// hbfree(foreign_memory); // now this memory can be reused!
+extern void hbfree(void *ptr, size_t size) {
+	ChunkHeader *header = (ChunkHeader*)((char*)ptr - HEADER_SIZE);
+	header->size = size;
+	hfree(ptr);
+}
+
+// int main(void) {
+// 	char stdout_buf[1024];
+// 	setvbuf(stdout, stdout_buf, _IOLBF, sizeof stdout_buf);
+// 	
+// 	void *object_a = hcalloc(WORD_SIZE * 10);
+// 	void *object_b = hcalloc(WORD_SIZE * 10);
+// 
+// 	hfree(object_a);
+// 	hfree(object_b);
+// 
+// 	TODO("Exercise 8-7. malloc accepts a size request without checking its plausibility; free believes"
+// 	     "that the block it is asked to free contains a valid size field. Improve these routines so they make"
+// 	     "more pains with error checking.");
+// 
+// 	return 0;
+// }
