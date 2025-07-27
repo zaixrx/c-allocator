@@ -1,28 +1,9 @@
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
 #include "halloc.h"
-
-#define TODO(msg) \
-	do { \
-		fprintf(stderr, "TODO (%s, %d) at %s: %s\n", \
-				__FILE__, __LINE__, __func__, msg); \
-		abort(); \
- 	} while (0)
-
-#define PAGE_SIZE 1 << 20 // Allocate 1 mega-byte page
-#define WORD_SIZE sizeof(uintptr_t)
-#define WORD uintptr_t
-// #define DO_LOG
-
-typedef struct chunk {
-	struct chunk *next;
-	size_t size;
-} ChunkHeader;
-
-#define HEADER_SIZE (sizeof(ChunkHeader))
 
 static ChunkHeader *free_chunks = NULL;
 
@@ -58,7 +39,7 @@ extern void *halloc(size_t size) {
 	ChunkHeader *curr = free_chunks, *prev = NULL;
 	for (; curr; prev = curr, curr = curr->next) {
 back:
-		if (curr->size >= size) {
+		if (curr->size >= size + HEADER_SIZE) {
 #ifdef DO_LOG
 			printf("used %zu out of %zu\n", size, curr->size);
 #endif
@@ -70,7 +51,9 @@ back:
 			}
 
 			ChunkHeader *new_chunk = (ChunkHeader*)((char*)curr + (curr->size - size));
+#ifdef DO_LOG
 			printf("wrote to %p size %zu\n", new_chunk, size);
+#endif
 			new_chunk->size = size;
 			new_chunk->next = NULL;
 
@@ -80,18 +63,17 @@ back:
 		}
 	}
 
+#ifndef USE_ONE_PAGE
 	if ((curr = prev->next = dchunk(round_up_to(size, PAGE_SIZE) / WORD_SIZE)) == NULL) return NULL;
 
 	goto back;
+#endif
+
+	return NULL;
 }
 
 extern void hfree(void *ptr) {
 	ChunkHeader *header = (ChunkHeader*)ptr - 1;
-	header->next = NULL;
-
-	if (free_chunks == NULL) {
-		free_chunks = header; return;
-	}
 
 	ChunkHeader *prev, *curr;
 	for (prev = NULL, curr = free_chunks; curr && (char*)curr <= (char*)ptr; curr = (prev = curr)->next);
@@ -106,27 +88,32 @@ extern void hfree(void *ptr) {
 		} else {
 			prev->next  = header;
 		}
+#ifdef DO_LOG
 		printf("merged RS, new size: %zu\n", header->size);
+#endif
 		done = true;
 	}
 	if (prev && (char*)prev + HEADER_SIZE + prev->size == (char*)header) {
 		prev->size += HEADER_SIZE + header->size;
 		header = prev;
+#ifdef DO_LOG
 		printf("merged LS, new size: %zu\n", prev->size);
+#endif
 		done = true;
 	}
 
 	if (done) return;
 
-	if (prev) {
-		header->next = prev;
-		prev->next = header;
+#ifdef DO_LOG
+	printf("merely added chunk %p\n", header);
+#endif
 
-		printf("added in the middle?\n");
+	if (prev) {
+		header->next = prev->next;
+		prev->next = header;
 		return;
 	}
 
-	printf("added at first!\n");
 	header->next = free_chunks;
 	free_chunks = header;
 }
@@ -141,29 +128,9 @@ extern void *hcalloc(size_t size) {
 	return data;
 }
 
-// used to work nice with other kinds of memory
-// one usage would be:
-// void *foreign_memory = malloc(69);
-// hbfree(foreign_memory); // now this memory can be reused!
+// used to work nice with other kinds of know size memory
 extern void hbfree(void *ptr, size_t size) {
-	ChunkHeader *header = (ChunkHeader*)((char*)ptr - HEADER_SIZE);
-	header->size = size;
-	hfree(ptr);
+	ChunkHeader *header = (ChunkHeader*)ptr;
+	header->size = size - HEADER_SIZE;
+	hfree(header + 1);
 }
-
-// int main(void) {
-// 	char stdout_buf[1024];
-// 	setvbuf(stdout, stdout_buf, _IOLBF, sizeof stdout_buf);
-// 	
-// 	void *object_a = hcalloc(WORD_SIZE * 10);
-// 	void *object_b = hcalloc(WORD_SIZE * 10);
-// 
-// 	hfree(object_a);
-// 	hfree(object_b);
-// 
-// 	TODO("Exercise 8-7. malloc accepts a size request without checking its plausibility; free believes"
-// 	     "that the block it is asked to free contains a valid size field. Improve these routines so they make"
-// 	     "more pains with error checking.");
-// 
-// 	return 0;
-// }
