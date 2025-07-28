@@ -12,7 +12,7 @@
 		abort(); \
  	} while (0)
 
-#define PAGE_SIZE 1 << 10
+#define PAGE_SIZE 1 << 12
 #define WORD_SIZE sizeof(uintptr_t)
 #define WORD uintptr_t
 

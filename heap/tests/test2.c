@@ -12,6 +12,7 @@
 
 static volatile bool running = true;
 void sigint_handler(int as_useful_as_you) {
+	(void)as_useful_as_you; // to shut the compiler warning
 	running = false;
 	printf("Closing...\n");
 }
@@ -23,7 +24,7 @@ static WORD data[VLA_SIZE][VLA_WORDS];
 unsigned int get_words_count(void) {
 	printf("how many words do you want: ");
 	static char str[1024];
-	int i = 0;
+	size_t i = 0;
 	do {
 		if ((str[i] = getc(stdin)) == '\n') break;
 	} while (++i < sizeof(str)-1);
@@ -36,8 +37,10 @@ unsigned int get_words_count(void) {
 int main(void) {
 	signal(SIGINT, sigint_handler);
 
-	unsigned int i;
-	unsigned int alloc_size;
+	halloc(0); // initialize alloctor
+
+	size_t i;
+	size_t alloc_size;
 
 	for (i = 0; i < VLA_SIZE; ++i) {
 		hbfree(data[i], sizeof data[i]);
@@ -52,7 +55,7 @@ int main(void) {
 		if (halloc(alloc_size) == NULL) break;
 	}
 
-	printf("took %d allocation to stop!\n", i);
+	printf("took %zu allocation if %zu bytes to stop!\n", i, alloc_size);
 
 	return EXIT_SUCCESS;
 }

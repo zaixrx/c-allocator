@@ -33,9 +33,18 @@ int main(int argc, char **argv) {
 
 	// TEST::START
 	void *ptr[noa];
-	for (int i = 0; i < noa; ++i) ptr[i] = alloc(i);
-	for (int i = 0; i < noa; ++i) hfree(ptr[i]);
+	for (size_t i = 0; i < noa; ++i) {
+		if ((ptr[i] = alloc(i)) == NULL) {
+			noa = i;
+			printf("out of memory at %zu'th iteration!\n", i);
+			break;
+		}
+	}
+	printf("number of deallocations is now %zu\n", noa);
+	for (size_t i = 0; i < noa; ++i) {
+		hfree(ptr[i]);
+	}
 	// TEST::END
 
-	return 0;
+	return EXIT_SUCCESS;
 }
