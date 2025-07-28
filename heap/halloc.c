@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "halloc.h"
 
@@ -19,7 +20,11 @@
 // expect maybe for the beginning which simplifies alot of stuff
 static ChunkHeader base = {0};
 static ChunkHeader *free_chunks = NULL;
-extern ChunkHeader *used_chunks = NULL; // useful for things like garbage colletion
+static ChunkHeader *used_chunks = NULL; // useful for things like garbage colletion
+
+extern ChunkHeader *get_used_chunks() {
+	return used_chunks;
+}
 
 static inline size_t round_up_to(size_t size, size_t to) {
 	if (size % to == 0) return size;
@@ -40,9 +45,6 @@ extern void *halloc(size_t size) {
 	if (free_chunks == NULL) {
 		free_chunks = &base;
 		free_chunks->next = free_chunks;
-
-		used_chunks = &base;
-		used_chunks->next = used_chunks;
 	}
 
 	if ((size = round_up_to(size, WORD_SIZE)) == 0) return NULL;
@@ -59,13 +61,20 @@ extern void *halloc(size_t size) {
 				LOG("completely used %zu bytes\n", curr->size);
 				prev->next = curr->next;
 			}
-			curr->next  = used_chunks;
-			used_chunks = curr;
-			return curr + 1;
+
+			if (used_chunks == NULL) {
+				used_chunks = curr->next = curr;
+			} else {
+				curr->next = used_chunks->next;
+				used_chunks->next = curr;
+			}
+
+			return (void*)(curr + 1);
 		}
 
 		if (curr == free_chunks) {
 #ifdef USE_ONE_PAGE
+			errno = ENOMEM;
 			return NULL;
 #else
 			// on success dchunk is gonna take care of the next step
@@ -97,12 +106,6 @@ extern void hfree(void *ptr) {
 	} else {
 		prev->next = header;
 		LOG("merely added chunk %p\n", header);
-	}
-
-	for (;;) {
-		curr = (prev = used_chunks)->next;
-		if (curr == header) prev->next = curr->next;
-		if (curr == used_chunks) break;
 	}
 }
 

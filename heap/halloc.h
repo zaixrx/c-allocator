@@ -16,7 +16,9 @@
 #define WORD_SIZE sizeof(uintptr_t)
 #define WORD uintptr_t
 
-#define USE_ONE_PAGE // TODO: get rid of this after testing!
+// TODO: get rid of this after testing!
+// #define USE_ONE_PAGE
+// #define DO_LOG
 
 typedef struct chunk {
 	struct chunk *next;
@@ -29,4 +31,5 @@ extern void *halloc(size_t size);
 extern void hfree(void *ptr);
 extern void *hcalloc(size_t size);
 extern void hbfree(void *ptr, size_t size);
+extern ChunkHeader *get_used_chunks();
 #endif
