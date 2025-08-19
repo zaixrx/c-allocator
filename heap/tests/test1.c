@@ -4,16 +4,6 @@
 
 #include "../halloc.h"
 
-void *my_malloc(size_t size) {
-	printf("used %zu\n", size);
-	return malloc(size);
-}
-
-void my_free(void *ptr) {
-	printf("free\n");
-	free(ptr);
-}
-
 int main(int argc, char **argv) {
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s <number_of_allocations> <halloc | malloc>?(halloc)\n", argv[0]);
@@ -27,22 +17,27 @@ int main(int argc, char **argv) {
 	}
 
 	void *(*alloc)(size_t) = halloc;
+	void  (*freep)(void*)  = hfree;
 	if (argc >= 3 && strcmp(argv[2], "malloc") == 0) {
-		alloc = my_malloc;
+		alloc = malloc;
+		freep = free;
 	}
 
 	// TEST::START
 	void *ptr[noa];
 	for (size_t i = 0; i < noa; ++i) {
-		if ((ptr[i] = alloc(i)) == NULL) {
+		if ((ptr[i] = alloc(i+1)) == NULL) {
 			noa = i;
-			printf("out of memory at %zu'th iteration!\n", i);
+			perror("alloc");
 			break;
 		}
+		// printf("INFO: allocted %zu bytes\n", i+1);
 	}
-	printf("number of deallocations is now %zu\n", noa);
-	for (size_t i = 0; i < noa; ++i) {
-		hfree(ptr[i]);
+	printf("\n----------\n");
+	printf("\nnumber of deallocations is now %zu\n", noa);
+	printf("\n----------\n");
+	for (size_t i = 1; i < noa; ++i) {
+		freep(ptr[i]);
 	}
 	// TEST::END
 

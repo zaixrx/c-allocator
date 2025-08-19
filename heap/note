@@ -1,10 +1,1 @@
-apart from the allocator supporting the ability to hand
-reused memory ``halloc`` and keep track of unused memory
-``hfree`` the allocator should:
-
-- avoid fragmentation as much as possible. -- remerging hfree <:
-- work well with parellel and concurrent processes
-  (which I won't give a fuck about!). -- >:
-- improve the ``memory layout`` with respect to the
-  CPU to improve ``cache locality`` and avoid ``false
-  sharing``.
+to avoid fragementation:

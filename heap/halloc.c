@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include "halloc.h"
 
@@ -21,6 +20,7 @@
 static ChunkHeader base = {0};
 static ChunkHeader *free_chunks = NULL;
 static ChunkHeader *used_chunks = NULL; // useful for things like garbage colletion
+static size_t page_size = -1;
 
 extern ChunkHeader *get_used_chunks() {
 	return used_chunks;
@@ -45,6 +45,7 @@ extern void *halloc(size_t size) {
 	if (free_chunks == NULL) {
 		free_chunks = &base;
 		free_chunks->next = free_chunks;
+		page_size = getpagesize();
 	}
 
 	if ((size = round_up_to(size, WORD_SIZE)) == 0) return NULL;
@@ -78,7 +79,7 @@ extern void *halloc(size_t size) {
 			return NULL;
 #else
 			// on success dchunk is gonna take care of the next step
-			if ((curr->next = dchunk(round_up_to(size, PAGE_SIZE) / WORD_SIZE)) == NULL) {
+			if ((curr->next = dchunk(round_up_to(size, page_size) / WORD_SIZE)) == NULL) {
 				return NULL;
 			}
 #endif
